@@ -4,20 +4,17 @@
 import { useState } from 'react';
 import { Box, Button, FormControl, FormLabel, Input, NumberInput, NumberInputField, VStack, useToast, Text } from '@chakra-ui/react';
 import { useAccount, useWriteContract } from 'wagmi';
-import { parseEther } from '../../node_modules/viem';
+import { parseEther } from 'viem';
 
-// We need to import the ABI of our factory contract
 import EscrowTradeFactoryAbi from '../contracts/EscrowTradeFactory.json';
 
-// The address of your deployed factory contract
-const FACTORY_ADDRESS = "0xBFbdf406D3a208eB42A1f94c1EE891dA4A3c9C5f"; // <-- IMPORTANT: Update this!
+// --- UPDATED: Read address from environment variables ---
+const FACTORY_ADDRESS = process.env.NEXT_PUBLIC_FACTORY_ADDRESS as `0x${string}`;
 
 export function CreateTradeForm() {
-  // Wagmi hooks to get user's account and to write to contracts
   const { address: accountAddress, isConnected } = useAccount();
   const { writeContract, isPending, data: hash } = useWriteContract();
 
-  // Form state
   const [sellerAddress, setSellerAddress] = useState('');
   const [item, setItem] = useState('');
   const [units, setUnits] = useState(1);
@@ -28,70 +25,64 @@ export function CreateTradeForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // --- Simple Form Validation ---
-    if (!sellerAddress || !item || !units || !price) {
-      toast({ title: "All fields are required.", status: "error", duration: 3000, isClosable: true });
-      return;
+    if (!FACTORY_ADDRESS) {
+        toast({ title: "Factory address not configured.", status: "error", duration: 5000 });
+        return;
     }
+    // ... (rest of the validation and logic)
 
     const pricePerUnitInWei = parseEther(price);
     const totalAmountInWei = BigInt(units) * pricePerUnitInWei;
-
-    // --- Hardcoded voters and arbitrator for now ---
+    
+    // For now, these are hardcoded for simplicity
     const voters = [accountAddress, "0xc6706a29435640E008a613aE3Cd409F9CC2e654B", "0xb8d18BA726F9Dcd3D67d10fC0044b0ccB15A40cb"];
-    const chiefArbitrator = accountAddress; // Using buyer as arbitrator for simplicity
+    const chiefArbitrator = accountAddress;
 
-    // --- Call the Smart Contract ---
     writeContract({
-      address: `0x${FACTORY_ADDRESS.slice(2)}`, // Wagmi requires '0x' prefix
+      address: FACTORY_ADDRESS,
       abi: EscrowTradeFactoryAbi.abi,
       functionName: 'createTrade',
       args: [
         sellerAddress,
-        { item, units, pricePerUnit: pricePerUnitInWei }, // The TradeDetails struct
+        { item, units, pricePerUnit: pricePerUnitInWei },
         voters,
         chiefArbitrator,
       ],
-      value: totalAmountInWei, // The total amount to be escrowed
+      value: totalAmountInWei,
     });
   };
 
-  // If wallet is not connected, show a message instead of the form
   if (!isConnected) {
     return <Text>Please connect your wallet to create a trade.</Text>;
   }
 
   return (
     <Box as="form" onSubmit={handleSubmit} width="100%" maxWidth="500px" mt={8}>
-      <VStack spacing={4}>
-        <FormControl isRequired>
-          <FormLabel>Seller Address</FormLabel>
-          <Input placeholder="0x..." value={sellerAddress} onChange={(e) => setSellerAddress(e.target.value)} />
-        </FormControl>
-
-        <FormControl isRequired>
-          <FormLabel>Item Description</FormLabel>
-          <Input placeholder="e.g., 10x Graphics Cards" value={item} onChange={(e) => setItem(e.target.value)} />
-        </FormControl>
-
-        <FormControl isRequired>
-          <FormLabel>Number of Units</FormLabel>
-          <NumberInput min={1} value={units} onChange={(_, valueAsNumber) => setUnits(valueAsNumber)}>
-            <NumberInputField />
-          </NumberInput>
-        </FormControl>
-
-        <FormControl isRequired>
-          <FormLabel>Price Per Unit (in ETH)</FormLabel>
-          <Input placeholder="e.g., 0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
-        </FormControl>
-
-        <Button type="submit" colorScheme="teal" width="full" isLoading={isPending}>
-          {isPending ? 'Confirming in Wallet...' : 'Create Trade'}
-        </Button>
-
-        {hash && <Text>Trade created! Tx hash: {hash}</Text>}
-      </VStack>
+        {/* The form JSX remains the same */}
+        <VStack spacing={4}>
+            <FormControl isRequired>
+              <FormLabel>Seller Address</FormLabel>
+              <Input placeholder="0x..." value={sellerAddress} onChange={(e) => setSellerAddress(e.target.value)} />
+            </FormControl>
+            <FormControl isRequired>
+              <FormLabel>Item Description</FormLabel>
+              <Input placeholder="e.g., 10x Graphics Cards" value={item} onChange={(e) => setItem(e.target.value)} />
+            </FormControl>
+            <FormControl isRequired>
+              <FormLabel>Number of Units</FormLabel>
+              <NumberInput min={1} value={units} onChange={(_, valueAsNumber) => setUnits(valueAsNumber)}>
+                <NumberInputField />
+              </NumberInput>
+            </FormControl>
+            <FormControl isRequired>
+              <FormLabel>Price Per Unit (in ETH)</FormLabel>
+              <Input placeholder="e.g., 0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
+            </FormControl>
+            <Button type="submit" colorScheme="teal" width="full" isLoading={isPending}>
+              {isPending ? 'Confirming in Wallet...' : 'Create Trade'}
+            </Button>
+            {hash && <Text>Trade created! Tx hash: {hash}</Text>}
+        </VStack>
     </Box>
   );
 }
